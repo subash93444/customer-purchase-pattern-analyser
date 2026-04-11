@@ -1,92 +1,122 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.linear_model import LinearRegression
 
+# ---------------- UI SETTINGS ----------------
 st.set_page_config(page_title="AI Dashboard", layout="wide")
+
+# ---------------- LOGO ----------------
+col1, col2, col3 = st.columns([1,2,1])
+
+with col2:
+    st.image("logo.png", width=150)
 
 st.title("🧠 Customer Purchase Dashboard")
 
+# ---------------- SIDEBAR ----------------
+st.sidebar.image("logo.png", width=120)
+st.sidebar.title("⚙️ Controls")
+
+show_data = st.sidebar.checkbox("Show Data", True)
+show_cluster = st.sidebar.checkbox("Show Clustering", True)
+show_prediction = st.sidebar.checkbox("Show Prediction", True)
+
+# ---------------- UPLOAD ----------------
 file = st.file_uploader("Upload CSV", type=["csv"])
 
 if file:
     df = pd.read_csv(file)
 
-    # 🔥 Clean column names
-    df.columns = df.columns.str.strip().str.lower()
+    # ---------------- METRICS ----------------
+    st.subheader("📌 Quick Insights")
 
-    st.subheader("Data Preview")
-    st.dataframe(df)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total Rows", len(df))
+    c2.metric("Products", df['Product'].nunique())
+    c3.metric("Categories", df['Category'].nunique())
 
-    st.write("Columns:", df.columns)  # DEBUG
+    # ---------------- DATA ----------------
+    if show_data:
+        with st.expander("🔍 View Dataset"):
+            st.dataframe(df)
 
-    # ---------------------------
-    # 📊 Top Products
-    # ---------------------------
-    st.subheader("Top Products")
+    # ---------------- TOP PRODUCTS ----------------
+    st.subheader("📊 Top Products (Animated)")
 
-    if 'product' in df.columns:
-        st.bar_chart(df['product'].value_counts().head(5))
-    else:
-        st.error("❌ 'Product' column not found")
+    top_products = df['Product'].value_counts().reset_index()
+    top_products.columns = ['Product', 'Count']
 
-    # ---------------------------
-    # 📂 Category
-    # ---------------------------
-    st.subheader("Category Distribution")
+    fig1 = px.bar(
+        top_products,
+        x='Product',
+        y='Count',
+        text='Count',
+        title="Top Products"
+    )
+    st.plotly_chart(fig1, use_container_width=True)
 
-    if 'category' in df.columns:
-        st.bar_chart(df['category'].value_counts())
-    else:
-        st.error("❌ 'Category' column not found")
+    # ---------------- CATEGORY ----------------
+    st.subheader("📦 Category Distribution (Animated)")
 
-    # ---------------------------
-    # 🤖 AI Clustering
-    # ---------------------------
-    st.subheader("Customer Segmentation (Clustering)")
+    cat = df['Category'].value_counts().reset_index()
+    cat.columns = ['Category', 'Count']
 
-    if 'amount' in df.columns:
-        X = df[['amount']]
+    fig2 = px.pie(
+        cat,
+        names='Category',
+        values='Count',
+        title="Category Distribution"
+    )
+    st.plotly_chart(fig2, use_container_width=True)
 
-        kmeans = KMeans(n_clusters=3, n_init=10)
-        df['cluster'] = kmeans.fit_predict(X)
+    # ---------------- CLUSTERING ----------------
+    if show_cluster:
+        st.subheader("🤖 Customer Segmentation (Animated)")
 
-        fig, ax = plt.subplots()
-        ax.scatter(df.index, df['amount'], c=df['cluster'])
-        ax.set_xlabel("Customer Index")
-        ax.set_ylabel("Amount")
-        ax.set_title("Cluster Graph")
+        if 'Amount' in df.columns:
+            X = df[['Amount']]
+            kmeans = KMeans(n_clusters=3, n_init=10, random_state=42)
+            df['Cluster'] = kmeans.fit_predict(X)
 
-        st.pyplot(fig)
-    else:
-        st.error("❌ 'Amount' column not found")
+            fig3 = px.scatter(
+                df,
+                x=df.index,
+                y='Amount',
+                color=df['Cluster'].astype(str),
+                title="Customer Clusters"
+            )
 
-    # ---------------------------
-    # 📈 Prediction
-    # ---------------------------
-    st.subheader("Sales Prediction (AI)")
+            st.plotly_chart(fig3, use_container_width=True)
 
-    if 'amount' in df.columns:
-        df['index'] = range(len(df))
+    # ---------------- PREDICTION ----------------
+    if show_prediction:
+        st.subheader("📈 Sales Prediction (Animated)")
 
-        X = df[['index']]
-        y = df['amount']
+        if 'Amount' in df.columns:
+            df['Index'] = range(len(df))
 
-        model = LinearRegression()
-        model.fit(X, y)
+            model = LinearRegression()
+            model.fit(df[['Index']], df['Amount'])
 
-        future = pd.DataFrame({'index': range(len(df), len(df)+5)})
-        predictions = model.predict(future)
+            future = pd.DataFrame({'Index': range(len(df), len(df)+5)})
+            predictions = model.predict(future)
 
-        fig2, ax2 = plt.subplots()
+            full = pd.DataFrame({
+                "Index": list(df['Index']) + list(future['Index']),
+                "Amount": list(df['Amount']) + list(predictions),
+                "Type": ["Actual"]*len(df) + ["Predicted"]*len(predictions)
+            })
 
-        ax2.plot(df['index'], df['amount'], marker='o', label="Actual")
-        ax2.plot(future['index'], predictions, marker='o', linestyle='--', label="Predicted")
+            fig4 = px.line(
+                full,
+                x="Index",
+                y="Amount",
+                color="Type",
+                markers=True,
+                title="Sales Prediction"
+            )
 
-        ax2.set_xlabel("Customer Index")
-        ax2.set_ylabel("Amount")
-        ax2.set_title("Sales Prediction Graph")
-        ax2.legend()
-
-        st.pyplot(fig2)
+            st.plotly_chart(fig4, use_container_width=True)
