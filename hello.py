@@ -14,7 +14,9 @@ col1, col2, col3 = st.columns([1,2,1])
 with col2:
     st.image("logo.png", width=150)
 
-st.title("🧠 Customer Purchase Dashboard")
+# ---------------- TITLE (UPDATED) ----------------
+st.title("📊 Product & Customer Insights System")
+st.subheader("Data Analysis • Visualization • Insights")
 
 # ---------------- SIDEBAR ----------------
 st.sidebar.image("logo.png", width=120)
