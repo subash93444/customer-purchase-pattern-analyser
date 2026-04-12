@@ -10,24 +10,12 @@ from sklearn.pipeline import make_pipeline
 # ---------------- UI SETTINGS ----------------
 st.set_page_config(page_title="AI Dashboard", layout="wide")
 
-# ---------------- LOGO ----------------
-col1, col2, col3 = st.columns([1,2,1])
-with col2:
-    st.image("logo.png", width=150)
-
-st.title("🧠 Customer Purchase Dashboard")
-
-# ---------------- SIDEBAR ----------------
-st.sidebar.image("logo.png", width=120)
-st.sidebar.title("⚙️ Controls")
-
-show_data = st.sidebar.checkbox("Show Data", True)
-show_cluster = st.sidebar.checkbox("Show Clustering", True)
-show_prediction = st.sidebar.checkbox("Show Prediction", True)
+st.title("🧠 Smart AI Customer Dashboard")
 
 # ---------------- FILE UPLOAD ----------------
-file = st.file_uploader("Upload CSV", type=["csv"])
+file = st.file_uploader("Upload ANY CSV File", type=["csv"])
 
+# ---------------- SAFE COLUMN FINDER ----------------
 def find_col(df, keywords):
     for col in df.columns:
         for k in keywords:
@@ -36,123 +24,130 @@ def find_col(df, keywords):
     return None
 
 if file:
-    df = pd.read_csv(file)
-    df.columns = df.columns.str.strip().str.lower()
 
-    st.success("✅ File uploaded successfully!")
+    try:
+        df = pd.read_csv(file)
+        df.columns = df.columns.str.strip().str.lower()
 
-    product_col = find_col(df, ["product", "item"])
-    category_col = find_col(df, ["category", "type"])
-    amount_col = find_col(df, ["amount", "price", "cost", "sales"])
+        st.success("✅ File uploaded successfully!")
 
-    # ---------------- METRICS ----------------
-    st.subheader("📌 Quick Insights")
+        st.subheader("📊 Raw Data Preview")
+        st.dataframe(df.head())
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Rows", len(df))
-    c2.metric("Products", df[product_col].nunique() if product_col else "N/A")
-    c3.metric("Categories", df[category_col].nunique() if category_col else "N/A")
+        # ---------------- AUTO DETECT ----------------
+        product_col = find_col(df, ["product", "item", "name"])
+        category_col = find_col(df, ["category", "type", "class"])
+        amount_col = find_col(df, ["amount", "price", "cost", "sales", "value", "total", "revenue"])
 
-    # ---------------- CATEGORY (ANIMATED PIE) ----------------
-    if category_col:
-        st.subheader("📦 Category Distribution (Animated)")
+        # ---------------- SAFE METRICS ----------------
+        st.subheader("📌 Quick Insights")
 
-        cat = df[category_col].value_counts().reset_index()
-        cat.columns = ['Category', 'Count']
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Rows", len(df))
+        c2.metric("Columns", len(df.columns))
+        c3.metric("Numeric Columns", len(df.select_dtypes(include='number').columns))
 
-        fig2 = px.pie(cat, names='Category', values='Count')
-        st.plotly_chart(fig2, use_container_width=True)
+        # ---------------- ALWAYS SHOW CHART 1 ----------------
+        st.subheader("📊 Data Overview Chart")
 
-    # ---------------- CLUSTERING ----------------
-    if show_cluster and amount_col:
-        st.subheader("🤖 Customer Segmentation")
+        num_cols = df.select_dtypes(include='number').columns
 
-        X = df[[amount_col]].dropna()
+        if len(num_cols) > 0:
+            fig1 = px.bar(df.head(10), x=num_cols[0], title="Numeric Data Overview (Auto)")
+        else:
+            fig1 = px.bar(x=["No Numeric Data"], y=[1], title="No Numeric Column Found")
 
-        if len(X) > 2:
-            kmeans = KMeans(n_clusters=3, n_init=10, random_state=42)
-            df['Cluster'] = kmeans.fit_predict(X)
+        st.plotly_chart(fig1, use_container_width=True)
 
-            fig3 = px.scatter(
-                df,
-                x=df.index,
-                y=amount_col,
-                color=df['Cluster'].astype(str),
-                title="Customer Clusters"
-            )
+        # ---------------- CATEGORY CHART ----------------
+        if category_col:
+            st.subheader("📦 Category Distribution")
 
-            st.plotly_chart(fig3, use_container_width=True)
+            cat = df[category_col].value_counts().reset_index()
+            cat.columns = ['Category', 'Count']
 
-    # ---------------- 🚀 ADVANCED PREDICTION (FIXED + ANIMATED) ----------------
-    if show_prediction and amount_col:
-        st.subheader("📈 AI Advanced Forecast (Animated)")
+            fig2 = px.pie(cat, names='Category', values='Count')
+            st.plotly_chart(fig2, use_container_width=True)
 
-        df_clean = df.dropna(subset=[amount_col]).copy()
-        df_clean['Index'] = range(len(df_clean))
+        # ---------------- CLUSTERING ----------------
+        st.subheader("🤖 Clustering (Auto)")
 
-        if len(df_clean) > 3:
+        if len(num_cols) >= 1:
+            X = df[[num_cols[0]]].dropna()
 
-            # ---------------- MODELS ----------------
-            lin_model = LinearRegression()
-            lin_model.fit(df_clean[['Index']], df_clean[amount_col])
+            if len(X) > 2:
+                kmeans = KMeans(n_clusters=3, n_init=10, random_state=42)
+                df['Cluster'] = kmeans.fit_predict(X)
 
-            poly_model = make_pipeline(PolynomialFeatures(3), LinearRegression())
-            poly_model.fit(df_clean[['Index']], df_clean[amount_col])
+                fig3 = px.scatter(
+                    df,
+                    x=df.index,
+                    y=num_cols[0],
+                    color=df['Cluster'].astype(str),
+                    title="Customer Clustering"
+                )
 
-            # ---------------- FUTURE ----------------
-            future_steps = 15
-            future = pd.DataFrame({'Index': range(len(df_clean), len(df_clean)+future_steps)})
+                st.plotly_chart(fig3, use_container_width=True)
+            else:
+                st.warning("Not enough data for clustering")
 
-            lin_pred = lin_model.predict(future)
-            poly_pred = poly_model.predict(future)
+        # ---------------- ADVANCED PREDICTION ----------------
+        st.subheader("📈 AI Forecast (Auto Prediction)")
 
-            # ---------------- SAFE DATA ----------------
-            actual = pd.DataFrame({
-                "Index": df_clean['Index'],
-                "Value": df_clean[amount_col],
-                "Type": "Actual"
-            })
+        if len(num_cols) > 0:
 
-            lin_df = pd.DataFrame({
-                "Index": future['Index'],
-                "Value": lin_pred,
-                "Type": "Linear"
-            })
+            col = num_cols[0]
 
-            poly_df = pd.DataFrame({
-                "Index": future['Index'],
-                "Value": poly_pred,
-                "Type": "Polynomial"
-            })
+            df_clean = df.dropna(subset=[col]).copy()
+            df_clean["Index"] = range(len(df_clean))
 
-            full = pd.concat([actual, lin_df, poly_df])
+            if len(df_clean) > 3:
 
-            # ---------------- ANIMATED GRAPH (FIXED) ----------------
-            fig = px.line(
-                full,
-                x="Index",
-                y="Value",
-                color="Type",
-                markers=True,
-                title="📊 Animated AI Sales Forecast"
-            )
+                # Linear
+                lin_model = LinearRegression()
+                lin_model.fit(df_clean[['Index']], df_clean[col])
 
-            fig.update_traces(line_shape="spline")  # smooth animation feel
+                # Polynomial
+                poly_model = make_pipeline(PolynomialFeatures(3), LinearRegression())
+                poly_model.fit(df_clean[['Index']], df_clean[col])
 
-            st.plotly_chart(fig, use_container_width=True)
+                future = pd.DataFrame({'Index': range(len(df_clean), len(df_clean)+15)})
 
-            # ---------------- INSIGHTS ----------------
-            st.subheader("🧠 AI Insights")
+                lin_pred = lin_model.predict(future)
+                poly_pred = poly_model.predict(future)
 
-            st.info(f"📊 Average Sales: {df_clean[amount_col].mean():.2f}")
-            st.info(f"📈 Max Sales: {df_clean[amount_col].max():.2f}")
-            st.info(f"📉 Min Sales: {df_clean[amount_col].min():.2f}")
+                full = pd.DataFrame({
+                    "Index": list(df_clean['Index']) + list(future['Index']),
+                    "Linear": list(df_clean[col]) + list(lin_pred),
+                    "Polynomial": list(df_clean[col]) + list(poly_pred)
+                })
 
-            trend = "📈 Increasing" if poly_pred[-1] > df_clean[amount_col].mean() else "📉 Stable/Down"
-            st.success(f"Forecast Trend: {trend}")
+                fig4 = px.line(
+                    full,
+                    x="Index",
+                    y=["Linear", "Polynomial"],
+                    markers=True,
+                    title="📊 AI Forecast (Animated View)"
+                )
+
+                st.plotly_chart(fig4, use_container_width=True)
+
+                # ---------------- INSIGHTS ----------------
+                st.subheader("🧠 AI Insights")
+
+                st.info(f"📊 Mean: {df_clean[col].mean():.2f}")
+                st.info(f"📈 Max: {df_clean[col].max():.2f}")
+                st.info(f"📉 Min: {df_clean[col].min():.2f}")
+
+            else:
+                st.warning("Not enough data for prediction")
 
         else:
-            st.warning("⚠️ Not enough data for prediction")
+            st.warning("No numeric column found for prediction")
+
+    except Exception as e:
+        st.error("❌ Error occurred but app is safe now (no crash)")
+        st.exception(e)
 
 else:
-    st.info("📂 Please upload a CSV file to start analysis")
+    st.info("📂 Upload any CSV file to start analysis")
