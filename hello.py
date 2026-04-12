@@ -28,6 +28,21 @@ file = st.file_uploader("Upload CSV", type=["csv"])
 if file:
     df = pd.read_csv(file)
 
+    # ---------------- FILTERS (NEW ADDED) ----------------
+    st.sidebar.subheader("🔍 Filters")
+
+    if 'Category' in df.columns:
+        category = st.sidebar.selectbox("Category", ["All"] + list(df['Category'].unique()))
+        if category != "All":
+            df = df[df['Category'] == category]
+
+    if 'Product' in df.columns:
+        product = st.sidebar.selectbox("Product", ["All"] + list(df['Product'].unique()))
+        if product != "All":
+            df = df[df['Product'] == product]
+
+    st.divider()
+
     # ---------------- KPI METRICS ----------------
     st.subheader("📌 Business Metrics")
 
@@ -42,11 +57,27 @@ if file:
     c3.metric("🧾 Transactions", transactions)
     c4.metric("📊 Avg Order Value", f"₹{avg_order_value:.2f}")
 
+    st.divider()
+
+    # ---------------- DOWNLOAD BUTTON (NEW ADDED) ----------------
+    st.subheader("⬇️ Download Data")
+
+    st.download_button(
+        "Download CSV",
+        df.to_csv(index=False),
+        file_name="customer_data.csv",
+        mime="text/csv"
+    )
+
+    st.divider()
+
     # ---------------- RAW DATA ----------------
     st.subheader("📂 Raw Data")
 
     if show_data:
         st.dataframe(df)
+
+    st.divider()
 
     # ---------------- CUSTOMER ANALYSIS ----------------
     st.subheader("👥 Customer Analysis")
@@ -64,6 +95,8 @@ if file:
         )
         st.plotly_chart(fig, use_container_width=True)
 
+    st.divider()
+
     # ---------------- PRODUCT RECOMMENDATION ----------------
     st.subheader("🛍️ Product Recommendation")
 
@@ -72,6 +105,8 @@ if file:
 
         for product, count in popular_products.items():
             st.write(f"🔥 {product} (Bought {count} times)")
+
+    st.divider()
 
     # ---------------- TOP PRODUCTS ----------------
     st.subheader("📊 Top Products")
@@ -89,6 +124,8 @@ if file:
         )
         st.plotly_chart(fig1, use_container_width=True)
 
+    st.divider()
+
     # ---------------- CATEGORY ----------------
     st.subheader("📦 Category Distribution")
 
@@ -104,6 +141,8 @@ if file:
         )
         st.plotly_chart(fig2, use_container_width=True)
 
+    st.divider()
+
     # ---------------- CUSTOMER SPENDING OVERVIEW ----------------
     st.subheader("💰 Customer Spending Overview")
 
@@ -115,6 +154,8 @@ if file:
             title="Customer Spending Distribution"
         )
         st.plotly_chart(fig3, use_container_width=True)
+
+    st.divider()
 
     # ---------------- CLUSTERING ----------------
     if show_cluster:
@@ -133,6 +174,8 @@ if file:
                 title="Customer Clusters"
             )
             st.plotly_chart(fig4, use_container_width=True)
+
+    st.divider()
 
     # ---------------- PREDICTION ----------------
     if show_prediction:
