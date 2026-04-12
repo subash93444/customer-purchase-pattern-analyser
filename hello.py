@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.linear_model import LinearRegression
 
@@ -10,7 +9,6 @@ st.set_page_config(page_title="AI Dashboard", layout="wide")
 
 # ---------------- LOGO ----------------
 col1, col2, col3 = st.columns([1,2,1])
-
 with col2:
     st.image("logo.png", width=150)
 
@@ -30,7 +28,7 @@ file = st.file_uploader("Upload CSV", type=["csv"])
 if file:
     df = pd.read_csv(file)
 
-    # ---------------- KPI METRICS (ADDED) ----------------
+    # ---------------- KPI METRICS ----------------
     st.subheader("📌 Business Metrics")
 
     total_customers = df['CustomerID'].nunique() if 'CustomerID' in df.columns else len(df)
@@ -44,62 +42,101 @@ if file:
     c3.metric("🧾 Transactions", transactions)
     c4.metric("📊 Avg Order Value", f"₹{avg_order_value:.2f}")
 
-    # ---------------- DATA ----------------
+    # ---------------- RAW DATA ----------------
+    st.subheader("📂 Raw Data")
+
     if show_data:
-        with st.expander("🔍 View Dataset"):
-            st.dataframe(df)
+        st.dataframe(df)
+
+    # ---------------- CUSTOMER ANALYSIS ----------------
+    st.subheader("👥 Customer Analysis")
+
+    if 'CustomerID' in df.columns and 'Amount' in df.columns:
+        customer_df = df.groupby('CustomerID')['Amount'].sum().reset_index()
+        customer_df = customer_df.sort_values(by='Amount', ascending=False)
+
+        fig = px.bar(
+            customer_df.head(10),
+            x='CustomerID',
+            y='Amount',
+            title="Top Customers by Spending",
+            text='Amount'
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ---------------- PRODUCT RECOMMENDATION ----------------
+    st.subheader("🛍️ Product Recommendation")
+
+    if 'Product' in df.columns:
+        popular_products = df['Product'].value_counts().head(5)
+
+        for product, count in popular_products.items():
+            st.write(f"🔥 {product} (Bought {count} times)")
 
     # ---------------- TOP PRODUCTS ----------------
-    st.subheader("📊 Top Products (Animated)")
+    st.subheader("📊 Top Products")
 
-    top_products = df['Product'].value_counts().reset_index()
-    top_products.columns = ['Product', 'Count']
+    if 'Product' in df.columns:
+        top_products = df['Product'].value_counts().reset_index()
+        top_products.columns = ['Product', 'Count']
 
-    fig1 = px.bar(
-        top_products,
-        x='Product',
-        y='Count',
-        text='Count',
-        title="Top Products"
-    )
-    st.plotly_chart(fig1, use_container_width=True)
+        fig1 = px.bar(
+            top_products,
+            x='Product',
+            y='Count',
+            text='Count',
+            title="Top Products"
+        )
+        st.plotly_chart(fig1, use_container_width=True)
 
     # ---------------- CATEGORY ----------------
-    st.subheader("📦 Category Distribution (Animated)")
+    st.subheader("📦 Category Distribution")
 
-    cat = df['Category'].value_counts().reset_index()
-    cat.columns = ['Category', 'Count']
+    if 'Category' in df.columns:
+        cat = df['Category'].value_counts().reset_index()
+        cat.columns = ['Category', 'Count']
 
-    fig2 = px.pie(
-        cat,
-        names='Category',
-        values='Count',
-        title="Category Distribution"
-    )
-    st.plotly_chart(fig2, use_container_width=True)
+        fig2 = px.pie(
+            cat,
+            names='Category',
+            values='Count',
+            title="Category Distribution"
+        )
+        st.plotly_chart(fig2, use_container_width=True)
+
+    # ---------------- CUSTOMER SPENDING OVERVIEW ----------------
+    st.subheader("💰 Customer Spending Overview")
+
+    if 'Amount' in df.columns:
+        fig3 = px.histogram(
+            df,
+            x='Amount',
+            nbins=20,
+            title="Customer Spending Distribution"
+        )
+        st.plotly_chart(fig3, use_container_width=True)
 
     # ---------------- CLUSTERING ----------------
     if show_cluster:
-        st.subheader("🤖 Customer Segmentation (Animated)")
+        st.subheader("🤖 Customer Segmentation")
 
         if 'Amount' in df.columns:
             X = df[['Amount']]
             kmeans = KMeans(n_clusters=3, n_init=10, random_state=42)
             df['Cluster'] = kmeans.fit_predict(X)
 
-            fig3 = px.scatter(
+            fig4 = px.scatter(
                 df,
                 x=df.index,
                 y='Amount',
                 color=df['Cluster'].astype(str),
                 title="Customer Clusters"
             )
-
-            st.plotly_chart(fig3, use_container_width=True)
+            st.plotly_chart(fig4, use_container_width=True)
 
     # ---------------- PREDICTION ----------------
     if show_prediction:
-        st.subheader("📈 Sales Prediction (Animated)")
+        st.subheader("📈 Sales Prediction")
 
         if 'Amount' in df.columns:
             df['Index'] = range(len(df))
@@ -116,7 +153,7 @@ if file:
                 "Type": ["Actual"]*len(df) + ["Predicted"]*len(predictions)
             })
 
-            fig4 = px.line(
+            fig5 = px.line(
                 full,
                 x="Index",
                 y="Amount",
@@ -125,4 +162,4 @@ if file:
                 title="Sales Prediction"
             )
 
-            st.plotly_chart(fig4, use_container_width=True)
+            st.plotly_chart(fig5, use_container_width=True)
