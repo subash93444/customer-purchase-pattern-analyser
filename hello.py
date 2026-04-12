@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.linear_model import LinearRegression
 
@@ -14,9 +13,7 @@ col1, col2, col3 = st.columns([1,2,1])
 with col2:
     st.image("logo.png", width=150)
 
-# ---------------- TITLE (UPDATED) ----------------
-st.title("📊 Product & Customer Insights System")
-st.subheader("Data Analysis • Visualization • Insights")
+st.title("🧠 Customer Purchase Dashboard")
 
 # ---------------- SIDEBAR ----------------
 st.sidebar.image("logo.png", width=120)
@@ -26,99 +23,115 @@ show_data = st.sidebar.checkbox("Show Data", True)
 show_cluster = st.sidebar.checkbox("Show Clustering", True)
 show_prediction = st.sidebar.checkbox("Show Prediction", True)
 
-# ---------------- UPLOAD ----------------
+# ---------------- FILE UPLOAD ----------------
 file = st.file_uploader("Upload CSV", type=["csv"])
+
+# ---------------- AUTO COLUMN DETECTION FUNCTION ----------------
+def find_col(df, keywords):
+    for col in df.columns:
+        for k in keywords:
+            if k in col.lower():
+                return col
+    return None
 
 if file:
     df = pd.read_csv(file)
+
+    # ---------------- CLEAN COLUMN NAMES ----------------
+    df.columns = df.columns.str.strip().str.lower()
+
+    st.success("✅ File uploaded successfully!")
+
+    # ---------------- AUTO DETECT COLUMNS ----------------
+    product_col = find_col(df, ["product", "item"])
+    category_col = find_col(df, ["category", "type"])
+    amount_col = find_col(df, ["amount", "price", "cost", "sales"])
 
     # ---------------- METRICS ----------------
     st.subheader("📌 Quick Insights")
 
     c1, c2, c3 = st.columns(3)
-    c1.metric("Total Rows", len(df))
-    c2.metric("Products", df['Product'].nunique())
-    c3.metric("Categories", df['Category'].nunique())
 
-    # ---------------- DATA ----------------
+    c1.metric("Total Rows", len(df))
+    c2.metric("Products", df[product_col].nunique() if product_col else "N/A")
+    c3.metric("Categories", df[category_col].nunique() if category_col else "N/A")
+
+    # ---------------- DATA VIEW ----------------
     if show_data:
         with st.expander("🔍 View Dataset"):
             st.dataframe(df)
 
-    # ---------------- TOP PRODUCTS ----------------
-    st.subheader("📊 Top Products (Animated)")
+    # ---------------- VALIDATION WARNING ----------------
+    if not product_col:
+        st.error("❌ Product column not found in dataset!")
+    else:
+        # ---------------- TOP PRODUCTS ----------------
+        st.subheader("📊 Top Products")
 
-    top_products = df['Product'].value_counts().reset_index()
-    top_products.columns = ['Product', 'Count']
+        top_products = df[product_col].value_counts().reset_index()
+        top_products.columns = ['Product', 'Count']
 
-    fig1 = px.bar(
-        top_products,
-        x='Product',
-        y='Count',
-        text='Count',
-        title="Top Products"
-    )
-    st.plotly_chart(fig1, use_container_width=True)
+        fig1 = px.bar(top_products, x='Product', y='Count', text='Count')
+        st.plotly_chart(fig1, use_container_width=True)
 
     # ---------------- CATEGORY ----------------
-    st.subheader("📦 Category Distribution (Animated)")
+    if category_col:
+        st.subheader("📦 Category Distribution")
 
-    cat = df['Category'].value_counts().reset_index()
-    cat.columns = ['Category', 'Count']
+        cat = df[category_col].value_counts().reset_index()
+        cat.columns = ['Category', 'Count']
 
-    fig2 = px.pie(
-        cat,
-        names='Category',
-        values='Count',
-        title="Category Distribution"
-    )
-    st.plotly_chart(fig2, use_container_width=True)
+        fig2 = px.pie(cat, names='Category', values='Count')
+        st.plotly_chart(fig2, use_container_width=True)
 
     # ---------------- CLUSTERING ----------------
     if show_cluster:
-        st.subheader("🤖 Customer Segmentation (Animated)")
+        st.subheader("🤖 Customer Segmentation")
 
-        if 'Amount' in df.columns:
-            X = df[['Amount']]
-            kmeans = KMeans(n_clusters=3, n_init=10, random_state=42)
-            df['Cluster'] = kmeans.fit_predict(X)
+        if amount_col:
+            X = df[[amount_col]].dropna()
 
-            fig3 = px.scatter(
-                df,
-                x=df.index,
-                y='Amount',
-                color=df['Cluster'].astype(str),
-                title="Customer Clusters"
-            )
+            if len(X) > 2:
+                kmeans = KMeans(n_clusters=3, n_init=10, random_state=42)
+                df['Cluster'] = kmeans.fit_predict(X)
 
-            st.plotly_chart(fig3, use_container_width=True)
+                fig3 = px.scatter(
+                    df,
+                    x=df.index,
+                    y=amount_col,
+                    color=df['Cluster'].astype(str),
+                    title="Customer Clusters"
+                )
+
+                st.plotly_chart(fig3, use_container_width=True)
+        else:
+            st.warning("⚠️ Amount column not found for clustering")
 
     # ---------------- PREDICTION ----------------
     if show_prediction:
-        st.subheader("📈 Sales Prediction (Animated)")
+        st.subheader("📈 Sales Prediction")
 
-        if 'Amount' in df.columns:
+        if amount_col:
+            df = df.dropna(subset=[amount_col])
             df['Index'] = range(len(df))
 
             model = LinearRegression()
-            model.fit(df[['Index']], df['Amount'])
+            model.fit(df[['Index']], df[amount_col])
 
             future = pd.DataFrame({'Index': range(len(df), len(df)+5)})
             predictions = model.predict(future)
 
             full = pd.DataFrame({
                 "Index": list(df['Index']) + list(future['Index']),
-                "Amount": list(df['Amount']) + list(predictions),
+                "Amount": list(df[amount_col]) + list(predictions),
                 "Type": ["Actual"]*len(df) + ["Predicted"]*len(predictions)
             })
 
-            fig4 = px.line(
-                full,
-                x="Index",
-                y="Amount",
-                color="Type",
-                markers=True,
-                title="Sales Prediction"
-            )
+            fig4 = px.line(full, x="Index", y="Amount", color="Type", markers=True)
 
             st.plotly_chart(fig4, use_container_width=True)
+        else:
+            st.warning("⚠️ Amount column not found for prediction")
+
+else:
+    st.info("📂 Please upload a CSV file to start analysis")
