@@ -1,107 +1,122 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.linear_model import LinearRegression
 
-# ---------------- UI ----------------
+# ---------------- UI SETTINGS ----------------
 st.set_page_config(page_title="AI Dashboard", layout="wide")
-st.title("🧠 Universal AI Dataset Dashboard")
 
-file = st.file_uploader("Upload ANY CSV File", type=["csv"])
+# ---------------- LOGO ----------------
+col1, col2, col3 = st.columns([1,2,1])
 
-# ---------------- SAFE FINDER ----------------
-def safe_numeric(df):
-    nums = df.select_dtypes(include='number').columns.tolist()
-    if len(nums) == 0:
-        df["auto_index"] = range(len(df))
-        nums = ["auto_index"]
-    return nums
+with col2:
+    st.image("logo.png", width=150)
 
-# ---------------- MAIN ----------------
+st.title("🧠 Customer Purchase Dashboard")
+
+# ---------------- SIDEBAR ----------------
+st.sidebar.image("logo.png", width=120)
+st.sidebar.title("⚙️ Controls")
+
+show_data = st.sidebar.checkbox("Show Data", True)
+show_cluster = st.sidebar.checkbox("Show Clustering", True)
+show_prediction = st.sidebar.checkbox("Show Prediction", True)
+
+# ---------------- UPLOAD ----------------
+file = st.file_uploader("Upload CSV", type=["csv"])
+
 if file:
-    try:
-        df = pd.read_csv(file)
-        df.columns = df.columns.str.strip().str.lower()
+    df = pd.read_csv(file)
 
-        st.success("✅ File Loaded Successfully")
-        st.dataframe(df.head())
+    # ---------------- METRICS ----------------
+    st.subheader("📌 Quick Insights")
 
-        # ---------------- SAFE COLUMNS ----------------
-        num_cols = safe_numeric(df)
-        col = num_cols[0]
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total Rows", len(df))
+    c2.metric("Products", df['Product'].nunique())
+    c3.metric("Categories", df['Category'].nunique())
 
-        # ---------------- QUICK INSIGHTS ----------------
-        st.subheader("📌 Quick Insights")
+    # ---------------- DATA ----------------
+    if show_data:
+        with st.expander("🔍 View Dataset"):
+            st.dataframe(df)
 
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Rows", len(df))
-        c2.metric("Columns", len(df.columns))
-        c3.metric("Numeric Columns", len(num_cols))
+    # ---------------- TOP PRODUCTS ----------------
+    st.subheader("📊 Top Products (Animated)")
 
-        # ---------------- DATA OVERVIEW ----------------
-        st.subheader("📊 Data Overview")
+    top_products = df['Product'].value_counts().reset_index()
+    top_products.columns = ['Product', 'Count']
 
-        fig1 = px.histogram(df, x=col)
-        st.plotly_chart(fig1, use_container_width=True)
+    fig1 = px.bar(
+        top_products,
+        x='Product',
+        y='Count',
+        text='Count',
+        title="Top Products"
+    )
+    st.plotly_chart(fig1, use_container_width=True)
 
-        # ---------------- CLUSTERING (SAFE) ----------------
-        st.subheader("🤖 Auto Clustering")
+    # ---------------- CATEGORY ----------------
+    st.subheader("📦 Category Distribution (Animated)")
 
-        if len(df) > 3:
-            X = df[[col]].dropna()
+    cat = df['Category'].value_counts().reset_index()
+    cat.columns = ['Category', 'Count']
 
-            model = KMeans(n_clusters=3, n_init=10, random_state=42)
-            df["cluster"] = model.fit_predict(X)
+    fig2 = px.pie(
+        cat,
+        names='Category',
+        values='Count',
+        title="Category Distribution"
+    )
+    st.plotly_chart(fig2, use_container_width=True)
 
-            fig2 = px.scatter(
+    # ---------------- CLUSTERING ----------------
+    if show_cluster:
+        st.subheader("🤖 Customer Segmentation (Animated)")
+
+        if 'Amount' in df.columns:
+            X = df[['Amount']]
+            kmeans = KMeans(n_clusters=3, n_init=10, random_state=42)
+            df['Cluster'] = kmeans.fit_predict(X)
+
+            fig3 = px.scatter(
                 df,
                 x=df.index,
-                y=col,
-                color=df["cluster"].astype(str),
-                title="AI Clusters"
-            )
-
-            st.plotly_chart(fig2, use_container_width=True)
-        else:
-            st.warning("Not enough data for clustering")
-
-        # ---------------- PREDICTION (SAFE AI) ----------------
-        st.subheader("📈 AI Prediction")
-
-        clean = df[[col]].dropna().copy()
-        clean["index"] = range(len(clean))
-
-        if len(clean) > 3:
-
-            model = LinearRegression()
-            model.fit(clean[["index"]], clean[col])
-
-            future = pd.DataFrame({"index": range(len(clean), len(clean)+10)})
-            pred = model.predict(future)
-
-            full = pd.DataFrame({
-                "index": list(clean["index"]) + list(future["index"]),
-                "value": list(clean[col]) + list(pred),
-                "type": ["Actual"] * len(clean) + ["Predicted"] * len(pred)
-            })
-
-            fig3 = px.line(
-                full,
-                x="index",
-                y="value",
-                color="type",
-                markers=True
+                y='Amount',
+                color=df['Cluster'].astype(str),
+                title="Customer Clusters"
             )
 
             st.plotly_chart(fig3, use_container_width=True)
 
-        else:
-            st.warning("Not enough data for prediction")
+    # ---------------- PREDICTION ----------------
+    if show_prediction:
+        st.subheader("📈 Sales Prediction (Animated)")
 
-    except Exception as e:
-        st.error("⚠️ File processed safely but something went wrong")
-        st.exception(e)
+        if 'Amount' in df.columns:
+            df['Index'] = range(len(df))
 
-else:
-    st.info("📂 Upload any CSV file to start analysis")
+            model = LinearRegression()
+            model.fit(df[['Index']], df['Amount'])
+
+            future = pd.DataFrame({'Index': range(len(df), len(df)+5)})
+            predictions = model.predict(future)
+
+            full = pd.DataFrame({
+                "Index": list(df['Index']) + list(future['Index']),
+                "Amount": list(df['Amount']) + list(predictions),
+                "Type": ["Actual"]*len(df) + ["Predicted"]*len(predictions)
+            })
+
+            fig4 = px.line(
+                full,
+                x="Index",
+                y="Amount",
+                color="Type",
+                markers=True,
+                title="Sales Prediction"
+            )
+
+            st.plotly_chart(fig4, use_container_width=True)
