@@ -28,7 +28,7 @@ file = st.file_uploader("Upload CSV", type=["csv"])
 if file:
     df = pd.read_csv(file)
 
-    # ---------------- FILTERS (NEW ADDED) ----------------
+    # ---------------- FILTERS ----------------
     st.sidebar.subheader("🔍 Filters")
 
     if 'Category' in df.columns:
@@ -59,7 +59,7 @@ if file:
 
     st.divider()
 
-    # ---------------- DOWNLOAD BUTTON (NEW ADDED) ----------------
+    # ---------------- DOWNLOAD ----------------
     st.subheader("⬇️ Download Data")
 
     st.download_button(
@@ -79,10 +79,15 @@ if file:
 
     st.divider()
 
-    # ---------------- CUSTOMER ANALYSIS ----------------
+    # ---------------- CUSTOMER ANALYSIS (FIXED + SAFE) ----------------
     st.subheader("👥 Customer Analysis")
 
     if 'CustomerID' in df.columns and 'Amount' in df.columns:
+
+        # clean data (IMPORTANT FIX)
+        df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce')
+        df = df.dropna(subset=['Amount', 'CustomerID'])
+
         customer_df = df.groupby('CustomerID')['Amount'].sum().reset_index()
         customer_df = customer_df.sort_values(by='Amount', ascending=False)
 
@@ -93,7 +98,11 @@ if file:
             title="Top Customers by Spending",
             text='Amount'
         )
+
         st.plotly_chart(fig, use_container_width=True)
+
+    else:
+        st.warning("⚠️ CustomerID or Amount column missing in CSV")
 
     st.divider()
 
