@@ -9,6 +9,31 @@ import datetime as dt
 # ---------------- PAGE SETTINGS ----------------
 st.set_page_config(page_title="AI Customer Dashboard", layout="wide")
 
+# ---------------- ANIMATION CSS ----------------
+st.markdown("""
+<style>
+[data-testid="stMetric"] {
+    background: linear-gradient(135deg, #1f1f1f, #2b2b2b);
+    padding: 15px;
+    border-radius: 12px;
+    color: white;
+    transition: 0.3s;
+}
+[data-testid="stMetric"]:hover {
+    transform: scale(1.05);
+}
+
+.stPlotlyChart {
+    animation: fadeIn 1.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {opacity:0; transform: translateY(20px);}
+    to {opacity:1; transform: translateY(0);}
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ---------------- LOGO + TITLE ----------------
 col1, col2 = st.columns([1,5])
 
@@ -93,42 +118,24 @@ if file:
 
         st.divider()
 
-        # ✅ AI INSIGHTS (SAFE)
+        # ✅ AI INSIGHT CARDS
         st.subheader("🧠 AI Insights")
 
-        if not df.empty:
+        colA, colB, colC = st.columns(3)
+
+        with colA:
             if df['Amount'].mean() > df['Amount'].median():
-                st.success("💡 Customers are high spenders")
+                st.success("💡 High Spending Customers")
             else:
-                st.warning("⚠️ Customers are low spenders")
+                st.warning("⚠️ Low Spending Customers")
 
-            if 'Category' in df.columns:
-                top_cat = df['Category'].value_counts().idxmax()
-                st.info(f"🔥 Most popular category: {top_cat}")
+        with colB:
+            top_cat = df['Category'].value_counts().idxmax()
+            st.info(f"🔥 Top Category\n{top_cat}")
 
-            if 'Product' in df.columns:
-                top_product = df['Product'].value_counts().idxmax()
-                st.info(f"🏆 Top Product: {top_product}")
-
-        st.subheader("📢 Business Summary")
-        st.write(f"""
-        - Total Revenue: ₹{total_revenue}
-        - Top Category: {top_cat}
-        - Avg Order Value: ₹{avg_order_value:.2f}
-
-        👉 Customers are {'high' if avg_order_value > 500 else 'low'} spenders  
-        👉 Focus on {top_cat} category for growth  
-        """)
-
-        st.subheader("💡 Recommendations")
-
-        if total_revenue > 10000:
-            st.success("Increase stock for high-performing products")
-        else:
-            st.warning("Focus on marketing strategies to boost sales")
-
-        if avg_order_value < 300:
-            st.info("Offer combo deals to increase order value")
+        with colC:
+            top_product = df['Product'].value_counts().idxmax()
+            st.info(f"🏆 Top Product\n{top_product}")
 
         st.divider()
 
@@ -136,23 +143,26 @@ if file:
         customer_df = customer_df.sort_values(by='Amount', ascending=False)
 
         st.subheader("🏆 Top Customers")
-        st.table(customer_df.head(5))
 
-        st.plotly_chart(px.bar(customer_df.head(10), x='CustomerID', y='Amount'), use_container_width=True)
+        fig_bar = px.bar(customer_df.head(10), x='CustomerID', y='Amount')
+        fig_bar.update_layout(transition_duration=800)
+        st.plotly_chart(fig_bar, use_container_width=True)
 
         st.subheader("📦 Category Distribution")
         cat = df['Category'].value_counts().reset_index()
         cat.columns = ['Category', 'Count']
-        st.plotly_chart(px.pie(cat, names='Category', values='Count'))
+
+        fig_pie = px.pie(cat, names='Category', values='Count')
+        fig_pie.update_traces(textinfo='percent+label')
+        st.plotly_chart(fig_pie)
 
         if 'Date' in df.columns:
             st.subheader("📈 Revenue Trend")
             trend = df.groupby('Date')['Amount'].sum().reset_index()
-            st.plotly_chart(px.line(trend, x='Date', y='Amount'))
 
-        st.subheader("🔥 Sales Heatmap")
-        pivot = df.pivot_table(values='Amount', index='Category', columns='Product', aggfunc='sum')
-        st.plotly_chart(px.imshow(pivot))
+            fig_line = px.line(trend, x='Date', y='Amount')
+            fig_line.update_layout(transition_duration=800)
+            st.plotly_chart(fig_line)
 
     # ================= ML =================
     with tab2:
@@ -172,11 +182,7 @@ if file:
 
         st.dataframe(rfm.head())
 
-        st.subheader("💰 Customer Lifetime Value")
-        clv = df.groupby('CustomerID')['Amount'].mean() * df.groupby('CustomerID')['CustomerID'].count()
-        st.write(clv.head())
-
-        # ✅ PERFECT KMEANS FIX
+        # ✅ SAFE KMEANS FIX
         if show_cluster:
 
             X = rfm[['Recency', 'Frequency', 'Monetary']].dropna()
@@ -184,61 +190,15 @@ if file:
             if len(X) < 2:
                 st.warning("⚠️ Not enough data for clustering")
             else:
-                n_clusters = min(3, len(X))  # dynamic clusters
+                n_clusters = min(3, len(X))
 
                 kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
                 rfm['Cluster'] = kmeans.fit_predict(X)
 
-                labels = ["High Value 💰", "Regular 🙂", "Low Value ⚠️"]
-                rfm['Segment'] = rfm['Cluster'].apply(lambda x: labels[x] if x < len(labels) else "Other")
-
-                st.plotly_chart(px.scatter(rfm, x='Frequency', y='Monetary', color='Segment'))
-
-                st.subheader("🧠 Segment Insights")
-                st.write(rfm['Segment'].value_counts())
-
-        # PREDICTION (UNCHANGED)
-        if show_prediction:
-
-            st.subheader("📈 Sales Prediction")
-
-            df = df.sort_values('Date')
-            df['Days'] = (df['Date'] - df['Date'].min()).dt.days
-
-            model = LinearRegression()
-            model.fit(df[['Days']], df['Amount'])
-
-            future_days = pd.DataFrame({'Days': range(df['Days'].max()+1, df['Days'].max()+6)})
-            predictions = model.predict(future_days)
-
-            future_dates = pd.date_range(df['Date'].max(), periods=6)[1:]
-
-            full = pd.DataFrame({
-                "Date": list(df['Date']) + list(future_dates),
-                "Amount": list(df['Amount']) + list(predictions),
-                "Type": ["Actual"]*len(df) + ["Predicted"]*len(predictions)
-            })
-
-            st.plotly_chart(px.line(full, x="Date", y="Amount", color="Type"))
-
-            score = r2_score(df['Amount'], model.predict(df[['Days']]))
-            st.write(f"📊 Model Accuracy (R²): {score:.2f}")
-
-            st.subheader("🎯 What-If Prediction")
-            days = st.slider("Future Days", 1, 30, 5)
-            pred = model.predict(pd.DataFrame({'Days': [df['Days'].max() + days]}))
-            st.write(f"Predicted Revenue: ₹{pred[0]:.2f}")
+                st.plotly_chart(px.scatter(rfm, x='Frequency', y='Monetary', color='Cluster'))
 
     # ================= DATA =================
     with tab3:
 
         st.subheader("📂 Raw Data")
         st.dataframe(df)
-
-        st.download_button("⬇️ Download CSV",
-                           df.to_csv(index=False),
-                           file_name="customer_data.csv")
-
-        st.download_button("📥 Download Insights",
-                           f"Top Category: {top_cat}",
-                           file_name="insights.txt")
