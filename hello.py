@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 from sklearn.cluster import KMeans
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score
 import datetime as dt
 
 # ---------------- PAGE SETTINGS ----------------
@@ -24,20 +25,16 @@ file = st.file_uploader("Upload CSV", type=["csv"])
 
 if file:
 
-    # ---------------- LOAD + CACHE ----------------
     @st.cache_data
     def load_data(file):
         return pd.read_csv(file)
 
     df = load_data(file)
-
     df = df.dropna()
 
-    # ---------------- SEARCH ----------------
     if search:
         df = df[df['CustomerID'].astype(str).str.contains(search)]
 
-    # ---------------- DATE FILTER ----------------
     if 'Date' in df.columns:
         df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
 
@@ -47,29 +44,23 @@ if file:
         df = df[(df['Date'] >= pd.to_datetime(start)) &
                 (df['Date'] <= pd.to_datetime(end))]
 
-    # ---------------- CATEGORY FILTER ----------------
     if 'Category' in df.columns:
         category = st.sidebar.selectbox("Category", ["All"] + list(df['Category'].dropna().unique()))
         if category != "All":
             df = df[df['Category'] == category]
 
-    # ---------------- PRODUCT FILTER ----------------
     if 'Product' in df.columns:
         product = st.sidebar.selectbox("Product", ["All"] + list(df['Product'].dropna().unique()))
         if product != "All":
             df = df[df['Product'] == product]
 
-    # ---------------- ERROR ----------------
     if df.empty:
         st.error("⚠️ No data available after filtering")
         st.stop()
 
-    # ---------------- TABS ----------------
     tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🤖 ML", "📂 Data"])
 
-    # =========================================================
-    # ---------------- DASHBOARD ----------------
-    # =========================================================
+    # ================= DASHBOARD =================
     with tab1:
 
         st.subheader("📌 Business Metrics")
@@ -79,12 +70,10 @@ if file:
         transactions = len(df)
         avg_order_value = total_revenue / transactions if transactions > 0 else 0
 
-        # KPI Growth
         if 'Date' in df.columns:
             last_week = df[df['Date'] >= df['Date'].max() - pd.Timedelta(days=7)]
             prev_week = df[(df['Date'] < df['Date'].max() - pd.Timedelta(days=7)) &
                            (df['Date'] >= df['Date'].max() - pd.Timedelta(days=14))]
-
             growth = last_week['Amount'].sum() - prev_week['Amount'].sum()
         else:
             growth = 0
@@ -97,7 +86,7 @@ if file:
 
         st.divider()
 
-        # ---------------- AI INSIGHTS ----------------
+        # AI INSIGHTS
         st.subheader("🧠 AI Insights")
 
         if df['Amount'].mean() > df['Amount'].median():
@@ -111,9 +100,32 @@ if file:
         top_product = df['Product'].value_counts().idxmax()
         st.info(f"🏆 Top Product: {top_product}")
 
+        # BUSINESS SUMMARY
+        st.subheader("📢 Business Summary")
+
+        st.write(f"""
+        - Total Revenue: ₹{total_revenue}
+        - Top Category: {top_cat}
+        - Avg Order Value: ₹{avg_order_value:.2f}
+
+        👉 Customers are {'high' if avg_order_value > 500 else 'low'} spenders  
+        👉 Focus on {top_cat} category for growth  
+        """)
+
+        # RECOMMENDATIONS
+        st.subheader("💡 Recommendations")
+
+        if total_revenue > 10000:
+            st.success("Increase stock for high-performing products")
+        else:
+            st.warning("Focus on marketing strategies to boost sales")
+
+        if avg_order_value < 300:
+            st.info("Offer combo deals to increase order value")
+
         st.divider()
 
-        # ---------------- TOP CUSTOMERS ----------------
+        # TOP CUSTOMERS
         customer_df = df.groupby('CustomerID')['Amount'].sum().reset_index()
         customer_df = customer_df.sort_values(by='Amount', ascending=False)
 
@@ -123,40 +135,29 @@ if file:
         fig = px.bar(customer_df.head(10), x='CustomerID', y='Amount')
         st.plotly_chart(fig, use_container_width=True)
 
-        # ---------------- CATEGORY ----------------
+        # CATEGORY
         st.subheader("📦 Category Distribution")
 
         cat = df['Category'].value_counts().reset_index()
         cat.columns = ['Category', 'Count']
 
         fig2 = px.pie(cat, names='Category', values='Count')
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2)
 
-        # ---------------- REVENUE TREND ----------------
+        # TREND
         if 'Date' in df.columns:
             st.subheader("📈 Revenue Trend")
-
             trend = df.groupby('Date')['Amount'].sum().reset_index()
-            fig_trend = px.line(trend, x='Date', y='Amount')
-            st.plotly_chart(fig_trend, use_container_width=True)
+            st.plotly_chart(px.line(trend, x='Date', y='Amount'))
 
-        # ---------------- HEATMAP ----------------
+        # HEATMAP
         st.subheader("🔥 Sales Heatmap")
+        pivot = df.pivot_table(values='Amount', index='Category', columns='Product', aggfunc='sum')
+        st.plotly_chart(px.imshow(pivot))
 
-        pivot = df.pivot_table(values='Amount',
-                               index='Category',
-                               columns='Product',
-                               aggfunc='sum')
-
-        fig_heat = px.imshow(pivot)
-        st.plotly_chart(fig_heat, use_container_width=True)
-
-    # =========================================================
-    # ---------------- ML ----------------
-    # =========================================================
+    # ================= ML =================
     with tab2:
 
-        # ---------------- RFM ANALYSIS ----------------
         st.subheader("📊 RFM Analysis")
 
         snapshot_date = df['Date'].max()
@@ -172,31 +173,29 @@ if file:
 
         st.dataframe(rfm.head())
 
-        # ---------------- CLUSTERING ----------------
+        # CLV
+        st.subheader("💰 Customer Lifetime Value")
+        clv = df.groupby('CustomerID')['Amount'].mean() * df.groupby('CustomerID')['CustomerID'].count()
+        st.write(clv.head())
+
+        # CLUSTER
         if show_cluster:
-
             X = rfm[['Recency', 'Frequency', 'Monetary']]
-
             kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
             rfm['Cluster'] = kmeans.fit_predict(X)
 
             def label(row):
-                if row['Cluster'] == 0:
-                    return "High Value 💰"
-                elif row['Cluster'] == 1:
-                    return "Regular 🙂"
-                else:
-                    return "Low Value ⚠️"
+                return ["High Value 💰", "Regular 🙂", "Low Value ⚠️"][row['Cluster']]
 
             rfm['Segment'] = rfm.apply(label, axis=1)
 
-            fig4 = px.scatter(rfm,
-                              x='Frequency',
-                              y='Monetary',
-                              color='Segment')
-            st.plotly_chart(fig4, use_container_width=True)
+            st.plotly_chart(px.scatter(rfm, x='Frequency', y='Monetary', color='Segment'))
 
-        # ---------------- PREDICTION ----------------
+            # SEGMENT INSIGHTS
+            st.subheader("🧠 Segment Insights")
+            st.write(rfm['Segment'].value_counts())
+
+        # PREDICTION
         if show_prediction:
 
             st.subheader("📈 Sales Prediction")
@@ -207,10 +206,7 @@ if file:
             model = LinearRegression()
             model.fit(df[['Days']], df['Amount'])
 
-            future_days = pd.DataFrame({
-                'Days': range(df['Days'].max()+1, df['Days'].max()+6)
-            })
-
+            future_days = pd.DataFrame({'Days': range(df['Days'].max()+1, df['Days'].max()+6)})
             predictions = model.predict(future_days)
 
             future_dates = pd.date_range(df['Date'].max(), periods=6)[1:]
@@ -221,12 +217,19 @@ if file:
                 "Type": ["Actual"]*len(df) + ["Predicted"]*len(predictions)
             })
 
-            fig5 = px.line(full, x="Date", y="Amount", color="Type", markers=True)
-            st.plotly_chart(fig5, use_container_width=True)
+            st.plotly_chart(px.line(full, x="Date", y="Amount", color="Type"))
 
-    # =========================================================
-    # ---------------- DATA ----------------
-    # =========================================================
+            # MODEL ACCURACY
+            score = r2_score(df['Amount'], model.predict(df[['Days']]))
+            st.write(f"📊 Model Accuracy (R²): {score:.2f}")
+
+            # WHAT-IF
+            st.subheader("🎯 What-If Prediction")
+            days = st.slider("Future Days", 1, 30, 5)
+            pred = model.predict(pd.DataFrame({'Days': [df['Days'].max() + days]}))
+            st.write(f"Predicted Revenue: ₹{pred[0]:.2f}")
+
+    # ================= DATA =================
     with tab3:
 
         st.subheader("📂 Raw Data")
@@ -234,10 +237,8 @@ if file:
 
         st.download_button("⬇️ Download CSV",
                            df.to_csv(index=False),
-                           file_name="customer_data.csv",
-                           mime="text/csv")
+                           file_name="customer_data.csv")
 
-        # Insights download
         st.download_button("📥 Download Insights",
                            f"Top Category: {top_cat}",
                            file_name="insights.txt")
