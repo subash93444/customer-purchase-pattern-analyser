@@ -9,7 +9,14 @@ import datetime as dt
 # ---------------- PAGE SETTINGS ----------------
 st.set_page_config(page_title="AI Customer Dashboard", layout="wide")
 
-st.title("🚀 AI-Powered Customer Analytics Dashboard")
+# ---------------- LOGO + TITLE ----------------
+col1, col2 = st.columns([1,5])
+
+with col1:
+    st.image("logo.png", width=90)
+
+with col2:
+    st.title("🚀 AI-Powered Customer Analytics Dashboard")
 
 st.markdown("This dashboard analyzes customer purchase behavior using AI techniques like clustering, RFM analysis, and prediction.")
 
@@ -86,7 +93,6 @@ if file:
 
         st.divider()
 
-        # AI INSIGHTS
         st.subheader("🧠 AI Insights")
 
         if df['Amount'].mean() > df['Amount'].median():
@@ -100,9 +106,7 @@ if file:
         top_product = df['Product'].value_counts().idxmax()
         st.info(f"🏆 Top Product: {top_product}")
 
-        # BUSINESS SUMMARY
         st.subheader("📢 Business Summary")
-
         st.write(f"""
         - Total Revenue: ₹{total_revenue}
         - Top Category: {top_cat}
@@ -112,7 +116,6 @@ if file:
         👉 Focus on {top_cat} category for growth  
         """)
 
-        # RECOMMENDATIONS
         st.subheader("💡 Recommendations")
 
         if total_revenue > 10000:
@@ -125,32 +128,24 @@ if file:
 
         st.divider()
 
-        # TOP CUSTOMERS
         customer_df = df.groupby('CustomerID')['Amount'].sum().reset_index()
         customer_df = customer_df.sort_values(by='Amount', ascending=False)
 
         st.subheader("🏆 Top Customers")
         st.table(customer_df.head(5))
 
-        fig = px.bar(customer_df.head(10), x='CustomerID', y='Amount')
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(px.bar(customer_df.head(10), x='CustomerID', y='Amount'), use_container_width=True)
 
-        # CATEGORY
         st.subheader("📦 Category Distribution")
-
         cat = df['Category'].value_counts().reset_index()
         cat.columns = ['Category', 'Count']
+        st.plotly_chart(px.pie(cat, names='Category', values='Count'))
 
-        fig2 = px.pie(cat, names='Category', values='Count')
-        st.plotly_chart(fig2)
-
-        # TREND
         if 'Date' in df.columns:
             st.subheader("📈 Revenue Trend")
             trend = df.groupby('Date')['Amount'].sum().reset_index()
             st.plotly_chart(px.line(trend, x='Date', y='Amount'))
 
-        # HEATMAP
         st.subheader("🔥 Sales Heatmap")
         pivot = df.pivot_table(values='Amount', index='Category', columns='Product', aggfunc='sum')
         st.plotly_chart(px.imshow(pivot))
@@ -173,29 +168,21 @@ if file:
 
         st.dataframe(rfm.head())
 
-        # CLV
         st.subheader("💰 Customer Lifetime Value")
         clv = df.groupby('CustomerID')['Amount'].mean() * df.groupby('CustomerID')['CustomerID'].count()
         st.write(clv.head())
 
-        # CLUSTER
         if show_cluster:
             X = rfm[['Recency', 'Frequency', 'Monetary']]
             kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
             rfm['Cluster'] = kmeans.fit_predict(X)
 
-            def label(row):
-                return ["High Value 💰", "Regular 🙂", "Low Value ⚠️"][row['Cluster']]
-
-            rfm['Segment'] = rfm.apply(label, axis=1)
-
+            rfm['Segment'] = rfm['Cluster'].map({0:"High Value 💰",1:"Regular 🙂",2:"Low Value ⚠️"})
             st.plotly_chart(px.scatter(rfm, x='Frequency', y='Monetary', color='Segment'))
 
-            # SEGMENT INSIGHTS
             st.subheader("🧠 Segment Insights")
             st.write(rfm['Segment'].value_counts())
 
-        # PREDICTION
         if show_prediction:
 
             st.subheader("📈 Sales Prediction")
@@ -219,11 +206,9 @@ if file:
 
             st.plotly_chart(px.line(full, x="Date", y="Amount", color="Type"))
 
-            # MODEL ACCURACY
             score = r2_score(df['Amount'], model.predict(df[['Days']]))
             st.write(f"📊 Model Accuracy (R²): {score:.2f}")
 
-            # WHAT-IF
             st.subheader("🎯 What-If Prediction")
             days = st.slider("Future Days", 1, 30, 5)
             pred = model.predict(pd.DataFrame({'Days': [df['Days'].max() + days]}))
