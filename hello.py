@@ -30,13 +30,19 @@ file = st.file_uploader("Upload CSV", type=["csv"])
 if file:
     df = pd.read_csv(file)
 
-    # ---------------- METRICS ----------------
-    st.subheader("📌 Quick Insights")
+    # ---------------- KPI METRICS (ADDED) ----------------
+    st.subheader("📌 Business Metrics")
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Rows", len(df))
-    c2.metric("Products", df['Product'].nunique())
-    c3.metric("Categories", df['Category'].nunique())
+    total_customers = df['CustomerID'].nunique() if 'CustomerID' in df.columns else len(df)
+    total_revenue = df['Amount'].sum() if 'Amount' in df.columns else 0
+    transactions = len(df)
+    avg_order_value = total_revenue / transactions if transactions > 0 else 0
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("👥 Total Customers", total_customers)
+    c2.metric("💰 Total Revenue", f"₹{total_revenue}")
+    c3.metric("🧾 Transactions", transactions)
+    c4.metric("📊 Avg Order Value", f"₹{avg_order_value:.2f}")
 
     # ---------------- DATA ----------------
     if show_data:
