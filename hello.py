@@ -59,6 +59,15 @@ if file:
 
     st.divider()
 
+    # ---------------- 🔥 KEY INSIGHTS (NEW) ----------------
+    st.subheader("🔥 Key Insights")
+
+    if 'Amount' in df.columns:
+        st.success(f"💡 Highest Purchase: ₹{df['Amount'].max()}")
+        st.info(f"📊 Average Purchase: ₹{df['Amount'].mean():.2f}")
+
+    st.divider()
+
     # ---------------- DOWNLOAD ----------------
     st.subheader("⬇️ Download Data")
 
@@ -79,30 +88,21 @@ if file:
 
     st.divider()
 
-    # ---------------- CUSTOMER ANALYSIS (FIXED + SAFE) ----------------
+    # ---------------- CUSTOMER ANALYSIS ----------------
     st.subheader("👥 Customer Analysis")
 
     if 'CustomerID' in df.columns and 'Amount' in df.columns:
-
-        # clean data (IMPORTANT FIX)
         df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce')
         df = df.dropna(subset=['Amount', 'CustomerID'])
 
         customer_df = df.groupby('CustomerID')['Amount'].sum().reset_index()
         customer_df = customer_df.sort_values(by='Amount', ascending=False)
 
-        fig = px.bar(
-            customer_df.head(10),
-            x='CustomerID',
-            y='Amount',
-            title="Top Customers by Spending",
-            text='Amount'
-        )
-
+        fig = px.bar(customer_df.head(10),
+                     x='CustomerID',
+                     y='Amount',
+                     title="Top Customers by Spending")
         st.plotly_chart(fig, use_container_width=True)
-
-    else:
-        st.warning("⚠️ CustomerID or Amount column missing in CSV")
 
     st.divider()
 
@@ -124,13 +124,10 @@ if file:
         top_products = df['Product'].value_counts().reset_index()
         top_products.columns = ['Product', 'Count']
 
-        fig1 = px.bar(
-            top_products,
-            x='Product',
-            y='Count',
-            text='Count',
-            title="Top Products"
-        )
+        fig1 = px.bar(top_products,
+                      x='Product',
+                      y='Count',
+                      title="Top Products")
         st.plotly_chart(fig1, use_container_width=True)
 
     st.divider()
@@ -142,13 +139,39 @@ if file:
         cat = df['Category'].value_counts().reset_index()
         cat.columns = ['Category', 'Count']
 
-        fig2 = px.pie(
-            cat,
-            names='Category',
-            values='Count',
-            title="Category Distribution"
-        )
+        fig2 = px.pie(cat,
+                      names='Category',
+                      values='Count',
+                      title="Category Distribution")
         st.plotly_chart(fig2, use_container_width=True)
+
+    st.divider()
+
+    # ---------------- 💰 REVENUE BY CATEGORY (NEW) ----------------
+    if 'Category' in df.columns and 'Amount' in df.columns:
+        st.subheader("💰 Revenue by Category")
+
+        cat_rev = df.groupby('Category')['Amount'].sum().reset_index()
+
+        fig3 = px.bar(cat_rev,
+                      x='Category',
+                      y='Amount',
+                      title="Revenue by Category")
+        st.plotly_chart(fig3, use_container_width=True)
+
+    st.divider()
+
+    # ---------------- 👥 CUSTOMER SEGMENTS (NEW) ----------------
+    if 'Amount' in df.columns:
+        st.subheader("👥 Customer Segments")
+
+        df['Segment'] = pd.qcut(df['Amount'], q=3, labels=['Low', 'Medium', 'High'])
+
+        fig4 = px.histogram(df,
+                            x='Segment',
+                            color='Segment',
+                            title="Customer Spending Segments")
+        st.plotly_chart(fig4, use_container_width=True)
 
     st.divider()
 
@@ -156,13 +179,11 @@ if file:
     st.subheader("💰 Customer Spending Overview")
 
     if 'Amount' in df.columns:
-        fig3 = px.histogram(
-            df,
-            x='Amount',
-            nbins=20,
-            title="Customer Spending Distribution"
-        )
-        st.plotly_chart(fig3, use_container_width=True)
+        fig5 = px.histogram(df,
+                            x='Amount',
+                            nbins=20,
+                            title="Customer Spending Distribution")
+        st.plotly_chart(fig5, use_container_width=True)
 
     st.divider()
 
@@ -175,14 +196,12 @@ if file:
             kmeans = KMeans(n_clusters=3, n_init=10, random_state=42)
             df['Cluster'] = kmeans.fit_predict(X)
 
-            fig4 = px.scatter(
-                df,
-                x=df.index,
-                y='Amount',
-                color=df['Cluster'].astype(str),
-                title="Customer Clusters"
-            )
-            st.plotly_chart(fig4, use_container_width=True)
+            fig6 = px.scatter(df,
+                              x=df.index,
+                              y='Amount',
+                              color=df['Cluster'].astype(str),
+                              title="Customer Clusters")
+            st.plotly_chart(fig6, use_container_width=True)
 
     st.divider()
 
@@ -205,13 +224,11 @@ if file:
                 "Type": ["Actual"]*len(df) + ["Predicted"]*len(predictions)
             })
 
-            fig5 = px.line(
-                full,
-                x="Index",
-                y="Amount",
-                color="Type",
-                markers=True,
-                title="Sales Prediction"
-            )
+            fig7 = px.line(full,
+                           x="Index",
+                           y="Amount",
+                           color="Type",
+                           markers=True,
+                           title="Sales Prediction")
 
-            st.plotly_chart(fig5, use_container_width=True)
+            st.plotly_chart(fig7, use_container_width=True)
