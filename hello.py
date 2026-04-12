@@ -9,31 +9,6 @@ import datetime as dt
 # ---------------- PAGE SETTINGS ----------------
 st.set_page_config(page_title="AI Customer Dashboard", layout="wide")
 
-# ---------------- ANIMATION CSS ----------------
-st.markdown("""
-<style>
-[data-testid="stMetric"] {
-    background: linear-gradient(135deg, #1f1f1f, #2b2b2b);
-    padding: 15px;
-    border-radius: 12px;
-    color: white;
-    transition: 0.3s;
-}
-[data-testid="stMetric"]:hover {
-    transform: scale(1.05);
-}
-
-.stPlotlyChart {
-    animation: fadeIn 1.2s ease-in-out;
-}
-
-@keyframes fadeIn {
-    from {opacity:0; transform: translateY(20px);}
-    to {opacity:1; transform: translateY(0);}
-}
-</style>
-""", unsafe_allow_html=True)
-
 # ---------------- LOGO + TITLE ----------------
 col1, col2 = st.columns([1,5])
 
@@ -102,52 +77,92 @@ if file:
         transactions = len(df)
         avg_order_value = total_revenue / transactions if transactions > 0 else 0
 
+        if 'Date' in df.columns:
+            last_week = df[df['Date'] >= df['Date'].max() - pd.Timedelta(days=7)]
+            prev_week = df[(df['Date'] < df['Date'].max() - pd.Timedelta(days=7)) &
+                           (df['Date'] >= df['Date'].max() - pd.Timedelta(days=14))]
+            growth = last_week['Amount'].sum() - prev_week['Amount'].sum()
+        else:
+            growth = 0
+
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("👥 Customers", total_customers)
-        c2.metric("💰 Revenue", f"₹{total_revenue}")
+        c2.metric("💰 Revenue", f"₹{total_revenue}", delta=f"{growth:.2f}")
         c3.metric("🧾 Transactions", transactions)
         c4.metric("📊 Avg Order", f"₹{avg_order_value:.2f}")
 
         st.divider()
 
-        # AI CARDS
+        # ✅ AI INSIGHTS (SAFE)
         st.subheader("🧠 AI Insights")
 
-        colA, colB, colC = st.columns(3)
-
-        with colA:
+        if not df.empty:
             if df['Amount'].mean() > df['Amount'].median():
-                st.success("💡 High Spending Customers")
+                st.success("💡 Customers are high spenders")
             else:
-                st.warning("⚠️ Low Spending Customers")
+                st.warning("⚠️ Customers are low spenders")
 
-        with colB:
-            top_cat = df['Category'].value_counts().idxmax()
-            st.info(f"🔥 Top Category\n{top_cat}")
+            if 'Category' in df.columns:
+                top_cat = df['Category'].value_counts().idxmax()
+                st.info(f"🔥 Most popular category: {top_cat}")
 
-        with colC:
-            top_product = df['Product'].value_counts().idxmax()
-            st.info(f"🏆 Top Product\n{top_product}")
+            if 'Product' in df.columns:
+                top_product = df['Product'].value_counts().idxmax()
+                st.info(f"🏆 Top Product: {top_product}")
+
+        st.subheader("📢 Business Summary")
+        st.write(f"""
+        - Total Revenue: ₹{total_revenue}
+        - Top Category: {top_cat}
+        - Avg Order Value: ₹{avg_order_value:.2f}
+
+        👉 Customers are {'high' if avg_order_value > 500 else 'low'} spenders  
+        👉 Focus on {top_cat} category for growth  
+        """)
+
+        st.subheader("💡 Recommendations")
+
+        if total_revenue > 10000:
+            st.success("Increase stock for high-performing products")
+        else:
+            st.warning("Focus on marketing strategies to boost sales")
+
+        if avg_order_value < 300:
+            st.info("Offer combo deals to increase order value")
 
         st.divider()
 
         customer_df = df.groupby('CustomerID')['Amount'].sum().reset_index()
+        customer_df = customer_df.sort_values(by='Amount', ascending=False)
 
-        fig = px.bar(customer_df.head(10), x='CustomerID', y='Amount')
-        fig.update_layout(transition_duration=800)
-        st.plotly_chart(fig, use_container_width=True)
+        st.subheader("🏆 Top Customers")
+        st.table(customer_df.head(5))
+
+        st.plotly_chart(px.bar(customer_df.head(10), x='CustomerID', y='Amount'), use_container_width=True)
+
+        st.subheader("📦 Category Distribution")
+        cat = df['Category'].value_counts().reset_index()
+        cat.columns = ['Category', 'Count']
+        st.plotly_chart(px.pie(cat, names='Category', values='Count'))
 
         if 'Date' in df.columns:
+            st.subheader("📈 Revenue Trend")
             trend = df.groupby('Date')['Amount'].sum().reset_index()
-            fig2 = px.line(trend, x='Date', y='Amount')
-            fig2.update_layout(transition_duration=800)
-            st.plotly_chart(fig2)
+            st.plotly_chart(px.line(trend, x='Date', y='Amount'))
+
+        st.subheader("🔥 Sales Heatmap")
+        pivot = df.pivot_table(values='Amount', index='Category', columns='Product', aggfunc='sum')
+        st.plotly_chart(px.imshow(pivot))
 
     # ================= ML =================
     with tab2:
 
+        st.subheader("📊 RFM Analysis")
+
+        snapshot_date = df['Date'].max()
+
         rfm = df.groupby('CustomerID').agg({
-            'Date': lambda x: (df['Date'].max() - x.max()).days,
+            'Date': lambda x: (snapshot_date - x.max()).days,
             'CustomerID': 'count',
             'Amount': 'sum'
         })
@@ -157,17 +172,73 @@ if file:
 
         st.dataframe(rfm.head())
 
+        st.subheader("💰 Customer Lifetime Value")
+        clv = df.groupby('CustomerID')['Amount'].mean() * df.groupby('CustomerID')['CustomerID'].count()
+        st.write(clv.head())
+
+        # ✅ PERFECT KMEANS FIX
         if show_cluster:
+
             X = rfm[['Recency', 'Frequency', 'Monetary']].dropna()
 
             if len(X) < 2:
                 st.warning("⚠️ Not enough data for clustering")
             else:
-                kmeans = KMeans(n_clusters=min(3, len(X)), n_init=10)
+                n_clusters = min(3, len(X))  # dynamic clusters
+
+                kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
                 rfm['Cluster'] = kmeans.fit_predict(X)
 
-                st.plotly_chart(px.scatter(rfm, x='Frequency', y='Monetary', color='Cluster'))
+                labels = ["High Value 💰", "Regular 🙂", "Low Value ⚠️"]
+                rfm['Segment'] = rfm['Cluster'].apply(lambda x: labels[x] if x < len(labels) else "Other")
+
+                st.plotly_chart(px.scatter(rfm, x='Frequency', y='Monetary', color='Segment'))
+
+                st.subheader("🧠 Segment Insights")
+                st.write(rfm['Segment'].value_counts())
+
+        # PREDICTION (UNCHANGED)
+        if show_prediction:
+
+            st.subheader("📈 Sales Prediction")
+
+            df = df.sort_values('Date')
+            df['Days'] = (df['Date'] - df['Date'].min()).dt.days
+
+            model = LinearRegression()
+            model.fit(df[['Days']], df['Amount'])
+
+            future_days = pd.DataFrame({'Days': range(df['Days'].max()+1, df['Days'].max()+6)})
+            predictions = model.predict(future_days)
+
+            future_dates = pd.date_range(df['Date'].max(), periods=6)[1:]
+
+            full = pd.DataFrame({
+                "Date": list(df['Date']) + list(future_dates),
+                "Amount": list(df['Amount']) + list(predictions),
+                "Type": ["Actual"]*len(df) + ["Predicted"]*len(predictions)
+            })
+
+            st.plotly_chart(px.line(full, x="Date", y="Amount", color="Type"))
+
+            score = r2_score(df['Amount'], model.predict(df[['Days']]))
+            st.write(f"📊 Model Accuracy (R²): {score:.2f}")
+
+            st.subheader("🎯 What-If Prediction")
+            days = st.slider("Future Days", 1, 30, 5)
+            pred = model.predict(pd.DataFrame({'Days': [df['Days'].max() + days]}))
+            st.write(f"Predicted Revenue: ₹{pred[0]:.2f}")
 
     # ================= DATA =================
     with tab3:
+
+        st.subheader("📂 Raw Data")
         st.dataframe(df)
+
+        st.download_button("⬇️ Download CSV",
+                           df.to_csv(index=False),
+                           file_name="customer_data.csv")
+
+        st.download_button("📥 Download Insights",
+                           f"Top Category: {top_cat}",
+                           file_name="insights.txt")
