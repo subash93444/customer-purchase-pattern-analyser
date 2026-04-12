@@ -13,7 +13,7 @@ st.set_page_config(page_title="AI Customer Dashboard", layout="wide")
 col1, col2 = st.columns([1,5])
 
 with col1:
-    st.image("logo.png", width=90)  # make sure logo.png is in folder
+    st.image("logo.png", width=90)
 
 with col2:
     st.title("🚀 AI-Powered Customer Analytics Dashboard")
@@ -93,18 +93,22 @@ if file:
 
         st.divider()
 
+        # ✅ AI INSIGHTS (SAFE)
         st.subheader("🧠 AI Insights")
 
-        if df['Amount'].mean() > df['Amount'].median():
-            st.success("💡 Customers are high spenders")
-        else:
-            st.warning("⚠️ Customers are low spenders")
+        if not df.empty:
+            if df['Amount'].mean() > df['Amount'].median():
+                st.success("💡 Customers are high spenders")
+            else:
+                st.warning("⚠️ Customers are low spenders")
 
-        top_cat = df['Category'].value_counts().idxmax()
-        st.info(f"🔥 Most popular category: {top_cat}")
+            if 'Category' in df.columns:
+                top_cat = df['Category'].value_counts().idxmax()
+                st.info(f"🔥 Most popular category: {top_cat}")
 
-        top_product = df['Product'].value_counts().idxmax()
-        st.info(f"🏆 Top Product: {top_product}")
+            if 'Product' in df.columns:
+                top_product = df['Product'].value_counts().idxmax()
+                st.info(f"🏆 Top Product: {top_product}")
 
         st.subheader("📢 Business Summary")
         st.write(f"""
@@ -172,7 +176,7 @@ if file:
         clv = df.groupby('CustomerID')['Amount'].mean() * df.groupby('CustomerID')['CustomerID'].count()
         st.write(clv.head())
 
-        # ✅ SAFE CLUSTERING
+        # ✅ PERFECT KMEANS FIX
         if show_cluster:
 
             X = rfm[['Recency', 'Frequency', 'Monetary']].dropna()
@@ -180,7 +184,7 @@ if file:
             if len(X) < 2:
                 st.warning("⚠️ Not enough data for clustering")
             else:
-                n_clusters = min(3, len(X))
+                n_clusters = min(3, len(X))  # dynamic clusters
 
                 kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
                 rfm['Cluster'] = kmeans.fit_predict(X)
@@ -193,7 +197,7 @@ if file:
                 st.subheader("🧠 Segment Insights")
                 st.write(rfm['Segment'].value_counts())
 
-        # PREDICTION
+        # PREDICTION (UNCHANGED)
         if show_prediction:
 
             st.subheader("📈 Sales Prediction")
