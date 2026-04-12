@@ -102,23 +102,15 @@ if file:
         transactions = len(df)
         avg_order_value = total_revenue / transactions if transactions > 0 else 0
 
-        if 'Date' in df.columns:
-            last_week = df[df['Date'] >= df['Date'].max() - pd.Timedelta(days=7)]
-            prev_week = df[(df['Date'] < df['Date'].max() - pd.Timedelta(days=7)) &
-                           (df['Date'] >= df['Date'].max() - pd.Timedelta(days=14))]
-            growth = last_week['Amount'].sum() - prev_week['Amount'].sum()
-        else:
-            growth = 0
-
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("👥 Customers", total_customers)
-        c2.metric("💰 Revenue", f"₹{total_revenue}", delta=f"{growth:.2f}")
+        c2.metric("💰 Revenue", f"₹{total_revenue}")
         c3.metric("🧾 Transactions", transactions)
         c4.metric("📊 Avg Order", f"₹{avg_order_value:.2f}")
 
         st.divider()
 
-        # ✅ AI INSIGHT CARDS
+        # AI CARDS
         st.subheader("🧠 AI Insights")
 
         colA, colB, colC = st.columns(3)
@@ -140,39 +132,22 @@ if file:
         st.divider()
 
         customer_df = df.groupby('CustomerID')['Amount'].sum().reset_index()
-        customer_df = customer_df.sort_values(by='Amount', ascending=False)
 
-        st.subheader("🏆 Top Customers")
-
-        fig_bar = px.bar(customer_df.head(10), x='CustomerID', y='Amount')
-        fig_bar.update_layout(transition_duration=800)
-        st.plotly_chart(fig_bar, use_container_width=True)
-
-        st.subheader("📦 Category Distribution")
-        cat = df['Category'].value_counts().reset_index()
-        cat.columns = ['Category', 'Count']
-
-        fig_pie = px.pie(cat, names='Category', values='Count')
-        fig_pie.update_traces(textinfo='percent+label')
-        st.plotly_chart(fig_pie)
+        fig = px.bar(customer_df.head(10), x='CustomerID', y='Amount')
+        fig.update_layout(transition_duration=800)
+        st.plotly_chart(fig, use_container_width=True)
 
         if 'Date' in df.columns:
-            st.subheader("📈 Revenue Trend")
             trend = df.groupby('Date')['Amount'].sum().reset_index()
-
-            fig_line = px.line(trend, x='Date', y='Amount')
-            fig_line.update_layout(transition_duration=800)
-            st.plotly_chart(fig_line)
+            fig2 = px.line(trend, x='Date', y='Amount')
+            fig2.update_layout(transition_duration=800)
+            st.plotly_chart(fig2)
 
     # ================= ML =================
     with tab2:
 
-        st.subheader("📊 RFM Analysis")
-
-        snapshot_date = df['Date'].max()
-
         rfm = df.groupby('CustomerID').agg({
-            'Date': lambda x: (snapshot_date - x.max()).days,
+            'Date': lambda x: (df['Date'].max() - x.max()).days,
             'CustomerID': 'count',
             'Amount': 'sum'
         })
@@ -182,23 +157,17 @@ if file:
 
         st.dataframe(rfm.head())
 
-        # ✅ SAFE KMEANS FIX
         if show_cluster:
-
             X = rfm[['Recency', 'Frequency', 'Monetary']].dropna()
 
             if len(X) < 2:
                 st.warning("⚠️ Not enough data for clustering")
             else:
-                n_clusters = min(3, len(X))
-
-                kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+                kmeans = KMeans(n_clusters=min(3, len(X)), n_init=10)
                 rfm['Cluster'] = kmeans.fit_predict(X)
 
                 st.plotly_chart(px.scatter(rfm, x='Frequency', y='Monetary', color='Cluster'))
 
     # ================= DATA =================
     with tab3:
-
-        st.subheader("📂 Raw Data")
         st.dataframe(df)
