@@ -1,7 +1,4 @@
-dash==2.17.0
-dash-bootstrap-components
-plotly
+streamlit
 pandas
-numpy
+plotly
 scikit-learn
-gunicorn
