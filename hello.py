@@ -656,29 +656,4 @@ def search_products(query):
             ], style={'flex':3}),
             html.Div([
                 html.Span(f"₹{r['discounted_price']:,.0f}", style={'color':AMAZON,'fontWeight':'700','fontSize':'14px'}),
-                html.Span(f" (was ₹{r['actual_price']:,.0f})", style={'color':MUTED,'fontSize':'11px','textDecoration':'line-through'}),
-                html.Span(f" -{r['discount_percentage']:.0f}%", style={'color':'#FF3366','fontSize':'11px','marginLeft':'6px'}),
-            ], style={'flex':2,'textAlign':'right'}),
-            html.Div([
-                html.Span(f"{'★'*round(r['rating'])} {r['rating']:.1f}",
-                          style={'color':'#FFD700','fontSize':'13px'}),
-                html.P(f"{int(r['rating_count']):,} reviews",
-                       style={'margin':'2px 0 0','fontSize':'10px','color':MUTED}),
-            ], style={'flex':1,'textAlign':'right'}),
-        ], style={'display':'flex','alignItems':'center','gap':'12px','padding':'10px 0',
-                  'borderBottom':f'1px solid {BORDER}'}))
-
-    return html.Div([
-        html.P(f'Found {len(res)} products matching "{query}"',
-               style={'color':MUTED,'fontSize':'11px','marginBottom':'12px'}),
-        html.Div([card([gchart(fig1)]), card([gchart(fig2)])],
-                 style={'display':'flex','gap':'16px','marginBottom':'16px'}),
-        card([html.Div(rows)])
-    ])
-
-
-if __name__ == '__main__':
-    print('\n' + '═'*58)
-    print('  🛒  Amazon PurchaseIQ  →  http://127.0.0.1:8050')
-    print('═'*58 + '\n')
-    app.run(debug=True, port=8050)
+                html.Span(f" (was ₹{r['actual_price']:,.0f})", style={'color':MUTED,'font
